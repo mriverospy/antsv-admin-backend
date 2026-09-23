@@ -1,0 +1,1 @@
+alter table organizacion add resumen text 

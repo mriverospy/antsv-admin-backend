@@ -1,0 +1,1 @@
+ALTER TABLE organizacion ADD COLUMN tiempo_dedicado_actividad character varying(255);

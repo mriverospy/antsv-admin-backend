@@ -1,0 +1,1 @@
+ALTER TABLE organizacion ALTER COLUMN cantidad_personas DROP NOT NULL;

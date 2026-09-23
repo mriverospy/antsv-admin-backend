@@ -1,0 +1,1 @@
+alter table moneda  add codigo varchar(50) null

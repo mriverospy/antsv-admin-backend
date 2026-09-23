@@ -1,0 +1,7 @@
+insert into tipo_organizacion(nombre, descripcion, estado) values ('Academia','Instituciones educativas, centros de investigación o equipos académicos que trabajan en la generación de conocimiento, innovación o formación profesional', true);
+insert into tipo_organizacion(nombre, descripcion, estado) values ('Empresas','Organizaciones formales con estructura comercial establecida, sin importar su tamaño o rubro', true);
+insert into tipo_organizacion(nombre, descripcion, estado) values ('Entidades de Gobierno','Ministerios, secretarias, municipios, u otras entidades estatales', true);
+insert into tipo_organizacion(nombre, descripcion, estado) values ('Sociedad Civil, Asociaciones o Gremios','Grupos autogestionados con fines sociales, productivos o gremiales', true);
+insert into tipo_organizacion(nombre, descripcion, estado) values ('Organizaciones sin files de lucro','Instituciones que trabajan con causas sociales, educativas, culturales o ambientales', true);
+insert into tipo_organizacion(nombre, descripcion, estado) values ('Startups','Proyectos innovadores en etapas iniciales o en expanción, con enfoque tecnológico, digital o disruptivo', true);
+insert into tipo_organizacion(nombre, descripcion, estado) values ('Sin organización formal','Usá esta opción si aún no formás parte de una organización, o si trabajás de forma individual', true);
