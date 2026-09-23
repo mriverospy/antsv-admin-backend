@@ -1,1 +1,0 @@
-ALTER TABLE public.archivo ADD tipo_archivo varchar NULL;

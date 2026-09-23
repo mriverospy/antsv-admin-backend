@@ -1,1 +1,0 @@
-ALTER TABLE organizacion ALTER COLUMN correo_electronico DROP NOT NULL;

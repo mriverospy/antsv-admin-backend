@@ -1,3 +1,5 @@
+> ANTSV: para una instalación nueva, seguir [la inicialización mínima](src/main/resources/db/README.md). Los comandos históricos de Flyway de este documento no deben aplicarse al nuevo esquema ni a la base local con historial HTV.
+
 # htv-admin-backend
 
 Este proyecto es el backend del sistema HTV (Hub Tecnológico Virtual), desarrollado en Java con Spring Boot.

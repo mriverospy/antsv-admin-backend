@@ -19,7 +19,9 @@ Los enums y modelos utilizados indirectamente por los contratos conservados perm
 
 ## Base de datos y configuración
 
-Las migraciones históricas SQL permanecen intactas. La limpieza inicial de código no modificó tablas. Posteriormente se limpió la base local `antsv` mediante el script manual indicado más abajo. Una instalación nueva que utilice esas migraciones seguirá creando el esquema histórico; preparar un esquema inicial mínimo es un trabajo separado.
+La carpeta `src/main/resources/db/scripts` contiene ahora únicamente `V1__estructura_inicial_antsv.sql` y `V2__datos_iniciales_antsv.sql`: 18 tablas de la aplicación vigente, sus secuencias, índices y claves foráneas, más los catálogos y permisos utilizados por el backend y el frontend. Se retiraron las 147 migraciones históricas y las funciones y secuencias huérfanas del dominio anterior. Los tipos de recurso siguen el enum actual del servicio de archivos. No se incluyen usuarios, contraseñas ni datos operativos.
+
+Esta nueva cadena es exclusivamente para bases vacías. No ejecutar `migrate` o `repair` con estos archivos sobre una base con el historial HTV: las versiones y checksums anteriores no corresponden a esta inicialización. La base local existente no fue modificada por esta limpieza. Ver `src/main/resources/db/README.md` para instalar desde cero.
 
 La aplicación conserva sus dependencias de PostgreSQL, MongoDB, Redis, SMTP e identidad electrónica. Personalizar sus configuraciones y la identidad visual para la nueva aplicación. Se respetaron los cambios locales preexistentes de `application-dev.properties`.
 
@@ -42,6 +44,6 @@ El script elimina explícitamente cuatro claves foráneas obsoletas en usuario/o
 
 El respaldo completo anterior al borrado está fuera de los repositorios, en `../.local-backups/antsv-20260923-161948/antsv.dump`, con permisos privados. `manifest.json` registra las tablas conservadas, eliminadas y sus conteos. Se verificó la lectura completa del respaldo con PostgreSQL 16. Para recuperar, restaurar preferentemente en una base vacía con `/usr/lib/postgresql/16/bin/pg_restore`; no importar encima de la base activa sin preparar la recuperación.
 
-Este script manual no es una migración automática y no debe volver a ejecutarse en la base ya limpiada. El historial de Flyway y las migraciones originales siguen intactos: una instalación desde cero aún crearía el esquema anterior. Esta operación no limpió registros de permisos/roles ni archivos MongoDB.
+Este script manual no es una migración automática y no debe volver a ejecutarse en la base ya limpiada. El historial de Flyway de la base local se conservó. Posteriormente, los archivos de migración del repositorio fueron reemplazados por la inicialización mínima descrita arriba. Esta operación no limpió registros de permisos/roles ni archivos MongoDB.
 
 Tras la eliminación manual de la tabla `institucion` y su columna en `organizacion`, se retiraron la relación JPA, `Institucion`, `InstitucionDTO` y las referencias del frontend. El mapeo anterior utilizaba `id_institucion`. El script de limpieza anterior permanece como registro histórico, no debe reejecutarse.

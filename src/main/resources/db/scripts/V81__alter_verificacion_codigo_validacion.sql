@@ -1,1 +1,0 @@
-ALTER TABLE verificacion_codigo_validacion ADD COLUMN tipo CHARACTER VARYING(255) DEFAULT 'REGISTRO';

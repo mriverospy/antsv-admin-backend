@@ -1,1 +1,0 @@
-ALTER TABLE usuario ADD COLUMN metodo_registro CHARACTER VARYING(255);

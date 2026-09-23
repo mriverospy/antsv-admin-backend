@@ -1,1 +1,0 @@
-ALTER TABLE usuario_aprobacion_historico ALTER COLUMN documento_original DROP NOT NULL;

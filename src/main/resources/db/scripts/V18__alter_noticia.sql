@@ -1,1 +1,0 @@
-alter table noticia add column resumen text;

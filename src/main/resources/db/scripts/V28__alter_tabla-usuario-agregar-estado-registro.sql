@@ -1,1 +1,0 @@
-ALTER TABLE usuario ADD COLUMN estado_registro VARCHAR(50) DEFAULT 'APROBADO';
