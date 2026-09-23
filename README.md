@@ -1,85 +1,79 @@
-> ANTSV: para una instalación nueva, seguir [la inicialización mínima](src/main/resources/db/README.md). Los comandos históricos de Flyway de este documento no deben aplicarse al nuevo esquema ni a la base local con historial HTV.
+# ANTSV — Backend
 
-# htv-admin-backend
+API de administración desarrollada con Java 21 y Spring Boot 3.4.1.
 
-Este proyecto es el backend del sistema HTV (Hub Tecnológico Virtual), desarrollado en Java con Spring Boot.
-Incluye autenticación, servicios RESTful y gestión de base de datos mediante migraciones con Flyway.
+Incluye autenticación, identidad electrónica, recuperación de contraseña, usuarios, roles, permisos, perfil, aprobación de usuarios, auditoría, notificaciones y archivos. Mantiene las dependencias de organizaciones necesarias para la sesión y la asignación de usuarios.
 
----
+## Requisitos
 
-## Cómo ejecutar el proyecto
+- JDK 21 y Maven.
+- PostgreSQL para los datos de la aplicación.
+- MongoDB para archivos y Redis para sesiones.
+- Servicio SMTP para correo y configuración de identidad electrónica para ese método de acceso.
 
-Ejecuta el backend en modo desarrollo con el siguiente comando:
+Ejecutar los comandos desde la raíz de este proyecto.
 
-Windows
-```bash
-mvn clean spring-boot:run "-Dspring-boot.run.profiles=dev"
-```
-macOS
-```bash
-mvn clean spring-boot:run -Dspring-boot.run.profiles=dev
-```
+## Configuración
 
--Dspring-boot.run.profiles=dev: asegura que se cargue la configuración del perfil dev.
+Revisar los archivos de `src/main/resources`:
 
+| Archivo | Uso |
+| --- | --- |
+| `application.properties` | Configuración general |
+| `application-dev.properties` | Desarrollo; API en `http://localhost:8085/api` |
+| `application-prod.properties` | Producción; puerto configurado `8083` |
+| `flyway.conf` | Configuración del plugin Maven de Flyway |
 
-##  Migraciones con Flyway
+Adaptar las conexiones de PostgreSQL, MongoDB y Redis, los parámetros JWT, SMTP, identidad electrónica y las URL de acceso al frontend. El perfil `dev` apunta a la base local `antsv`; los otros archivos todavía contienen valores heredados de HTV. Configurar credenciales propias fuera del repositorio.
 
-Asegurate de tener configurado correctamente el archivo flyway.conf en src/main/resources/flyway.conf con los datos de conexión a la base de datos.
+El perfil `dev` tiene `spring.jpa.hibernate.ddl-auto=update`. Para una instalación gestionada mediante migraciones, usar `validate` o `none` después de inicializar la base.
 
-1. Inicializar Flyway si es la primera vez (opcional)
+## Base de datos nueva
 
-```bash
-mvn flyway:baseline "-Dflyway.configFiles=src/main/resources/flyway.conf"
-```
-Este comando marca el estado actual de la base como el punto de partida para Flyway. Usar solo si estás migrando una base ya existente sin historial.
+Seguir la [guía de inicialización](src/main/resources/db/README.md) antes de iniciar la aplicación. La carpeta `src/main/resources/db/scripts` contiene:
 
-2. Ejecutar las migraciones
-```bash
-mvn clean package -DskipTests
-mvn flyway:migrate "-Dflyway.configFiles=src/main/resources/flyway.conf"
-```
-Aplica los scripts SQL ubicados en la carpeta de migraciones (src/main/resources/db/migration) en orden de versión.
+- `V1__estructura_inicial_antsv.sql`: 18 tablas, secuencias, índices y relaciones.
+- `V2__datos_iniciales_antsv.sql`: catálogos, rol ADMINISTRADOR y 56 permisos utilizados por la aplicación.
 
-3. Reparar inconsistencias (opcional)
-```bash
-mvn clean package -DskipTests
-mvn flyway:repair "-Dflyway.configFiles=src/main/resources/flyway.conf"
-```
-Repara la tabla de historial (flyway_schema_history), por ejemplo, si hubo errores o cambios en archivos ya aplicados (mismatch de checksum).
-mvn -Dflyway.outOfOrder=true flyway:migrate  "-Dflyway.configFiles=src/main/resources/flyway.conf"
+Estos scripts son exclusivamente para una base vacía. Reemplazan el historial SQL de HTV y no deben aplicarse sobre bases que conserven aquel historial. No utilizar `repair` para forzar esa transición.
 
-4. Limpieza
-```bash
-mvn clean package -DskipTests
-mvn -Dflyway.cleanDisabled=false flyway:clean "-Dflyway.configFiles=src/main/resources/flyway.conf"
+No se crea una cuenta con credenciales predeterminadas. La instalación debe provisionar el primer usuario administrador y asociarlo al rol ADMINISTRADOR.
+
+Para ejecutar las migraciones desde Spring Boot, configurar explícitamente `spring.flyway.locations=classpath:db/scripts` y la conexión de destino. El archivo `flyway.conf` del plugin Maven debe revisarse por separado: todavía contiene una conexión heredada.
+
+## Desarrollo
+
+Con la base preparada y los servicios configurados:
+
+```sh
+mvn spring-boot:run "-Dspring-boot.run.profiles=dev"
 ```
 
-5. Si ya ejecutaste un archivo directamente en la bd pero de igual manera se necesita generar el history
-```bash
-mvn clean package -DskipTests
-mvn flyway:baseline -Dflyway.baselineVersion=21 "-Dflyway.configFiles=src/main/resources/flyway.conf"
+El frontend local utiliza `http://localhost:8085/api` mediante su proxy de desarrollo.
+
+## Compilación y pruebas
+
+```sh
+mvn -DskipTests clean package
+mvn -Dtest=TemplateBackendTests test
 ```
 
+El artefacto conserva el nombre definido en `pom.xml`: `target/htv-admin-backend.jar`.
 
-
-
-
-
-## Buenas prácticas
-•	Nunca edites archivos SQL de migración ya ejecutados en producción.
-•	Si necesitás cambiar la estructura de una tabla, creá un nuevo script V3__ajuste_tabla.sql.
-•	Usá repair solo cuando estés seguro de que el cambio fue intencional y correcto.
-
-
-## Estructura de carpetas relevante
+```sh
+java -jar target/htv-admin-backend.jar --spring.profiles.active=dev
 ```
-src/
-├── main/
-│   ├── java/              → Código fuente Java
-│   ├── resources/
-│   │   ├── application.yml → Configuración por perfiles
-│   │   ├── flyway.conf     → Configuración de Flyway
-│   │   └── db/
-│   │       └── migration/  → Scripts SQL de migración (V1__, V2__, ...)
+
+`TemplateBackendTests` comprueba entidades, consultas JPQL, controladores conservados y recursos de correo sin conectarse a las bases. La prueba `HtvBackendApplicationTests` requiere el entorno completo. `-DskipTests` omite la ejecución de pruebas al empaquetar.
+
+## Estructura
+
+```text
+src/main/java/                 Código de la API
+src/main/resources/            Configuración y recursos
+src/main/resources/db/scripts/ Inicialización SQL de ANTSV
+src/test/java/                 Pruebas
+maintenance/                   Scripts históricos de mantenimiento manual
 ```
+
+Consultar [TEMPLATE_BASE.md](TEMPLATE_BASE.md) para el alcance de la limpieza y las dependencias conservadas. Los scripts de `maintenance` documentan operaciones anteriores y no forman parte de una instalación nueva.
