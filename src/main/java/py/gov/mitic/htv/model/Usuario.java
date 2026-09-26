@@ -65,6 +65,10 @@ public class Usuario implements Serializable {
 	@Column(name = "nacionalidad")
 	private String nacionalidad;
 
+    // Conserva el formato enviado por Identidad Electrónica.
+    @Column(name = "fecha_nacimiento")
+    private String fechaNacimiento;
+
 	@Column(name = "usuario")
 	private String username;
 
@@ -82,7 +86,7 @@ public class Usuario implements Serializable {
 	private Date fechaModificacion;
 
 	@Temporal(TemporalType.TIMESTAMP)
-	@Column(name = "fecha_expiracion", nullable = false)
+	@Column(name = "fecha_expiracion")
 	private Date fechaExpiracion;
 
 	@ManyToMany(targetEntity = Rol.class, cascade = { CascadeType.PERSIST, CascadeType.MERGE,

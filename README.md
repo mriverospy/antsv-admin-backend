@@ -77,3 +77,23 @@ maintenance/                   Scripts históricos de mantenimiento manual
 ```
 
 Consultar [TEMPLATE_BASE.md](TEMPLATE_BASE.md) para el alcance de la limpieza y las dependencias conservadas. Los scripts de `maintenance` documentan operaciones anteriores y no forman parte de una instalación nueva.
+
+### Registro mediante Identidad Electrónica
+
+Al validar IE, un documento sin usuario genera una cuenta activa y aprobada, con el
+documento como nombre de usuario y el método de registro IE. Se conservan nombres,
+apellidos, correo, nacionalidad, teléfono, domicilio y fecha de nacimiento recibidos.
+No se persisten el token ni sus metadatos como datos del perfil. Las cuentas existentes
+conservan sus datos, roles y restricciones de acceso.
+
+El rol se define en `ROLES.TRAMITANTE_ANTSV` (8) y se parametriza con
+`ie.registro.rol-id` o la variable `IE_REGISTRO_ROL_ID`. Debe existir y estar activo,
+con los permisos necesarios para acceder. El catálogo inicial sólo crea ADMINISTRADOR;
+el rol Tramitante ANTSV y sus permisos deben existir en la instalación.
+El parámetro es del servidor y no se acepta desde el cliente.
+
+Aplicar `V3__fecha_nacimiento_usuario.sql` mediante el procedimiento de migración
+correspondiente a la instalación antes de desplegar. La cuenta IE se crea sin
+organización ni vencimiento, y con un hash de un secreto aleatorio no compartido,
+porque IE no proporciona una contraseña local. Puede usar el flujo existente
+de recuperación de contraseña si necesita habilitar ese acceso.

@@ -220,10 +220,7 @@ public class AuthenticationController {
 			if (ieDTO.getSub() == null || ieDTO.getSub().isEmpty() || !Util.isNumeric(ieDTO.getSub()))
 				throw new BadRequestException("No se pudo identificar al ciudadano");
 
-			Usuario usuario = usuarioService.getUserNroDocumentoSession(ieDTO.getSub());
-			if (usuario == null) {
-				throw new BadRequestException("Usuario no encontrado");
-			}
+			Usuario usuario = usuarioService.obtenerOCrearUsuarioIE(ieDTO);
 
 			if (usuario.getPassword() == null) {
 				throw new BadRequestException("Contraseña no disponible.");

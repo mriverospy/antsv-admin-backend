@@ -41,6 +41,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import py.gov.mitic.htv.dto.*;
 import py.gov.mitic.htv.dto.auth.AuthenticationRequest;
+import py.gov.mitic.htv.dto.auth.IdentidadPersonaDTO;
+import py.gov.mitic.htv.constants.ROLES;
 import py.gov.mitic.htv.dto.shared.ResponseDTO;
 import py.gov.mitic.htv.dto.shared.TableDTO;
 import py.gov.mitic.htv.enums.RolEnum;
@@ -102,6 +104,65 @@ public class UsuarioService extends GenericSpecification<Usuario> implements Use
 
 	@Value("${htv.admin.linK.acceso.plataforma}")
 	private String linkAccesoPlataformaAdmin;
+
+    @Value("${ie.registro.rol-id:" + ROLES.TRAMITANTE_ANTSV + "}")
+    private Long rolRegistroIE = ROLES.TRAMITANTE_ANTSV;
+
+    /**
+     * Registra únicamente ciudadanos nuevos, usando el rol configurado en el servidor.
+     * Los datos de identidad deben proceder de validatorAccess.
+     */
+    @Transactional
+    public Usuario obtenerOCrearUsuarioIE(IdentidadPersonaDTO identidad) {
+        if (identidad == null || identidad.getSub() == null
+                || !identidad.getSub().matches("[0-9]+")) {
+            throw new BadRequestException("No se pudo identificar al ciudadano");
+        }
+        Usuario existente = usuarioRepository.findByUserNroDocumentoSession(identidad.getSub());
+        if (existente != null) {
+            return existente;
+        }
+        if (identidad.getNombres() == null || identidad.getNombres().isBlank()
+                || identidad.getApellidos() == null || identidad.getApellidos().isBlank()
+                || identidad.getEmail() == null || identidad.getEmail().isBlank()) {
+            throw new BadRequestException("Identidad Electrónica no devolvió nombres, apellidos o correo");
+        }
+        // El documento es el identificador estable; no vincular cuentas sólo por correo.
+        if (usuarioRepository.findByUsername(identidad.getSub()) != null) {
+            throw new BadRequestException("El nombre de usuario ya existe para otro documento");
+        }
+        Rol rol = rolRepository.findById(rolRegistroIE)
+                .orElseThrow(() -> new BadRequestException("No existe el rol configurado para el registro IE"));
+        if (!Boolean.TRUE.equals(rol.getEstado())) {
+            throw new BadRequestException("El rol configurado para el registro IE está inactivo");
+        }
+        MetodoRegistro metodo = metodoRegistroRepository.findByCodigo("IE")
+                .orElseThrow(() -> new BadRequestException("No existe el método de registro IE"));
+
+        Usuario usuario = new Usuario();
+        usuario.setUsername(identidad.getSub());
+        usuario.setNroDocumento(identidad.getSub());
+        usuario.setNombre(identidad.getNombres());
+        usuario.setApellido(identidad.getApellidos());
+        usuario.setCorreo(identidad.getEmail());
+        usuario.setNacionalidad(identidad.getNacionalidad());
+        usuario.setTelefono(identidad.getTelefonoMovil());
+        usuario.setDireccion(identidad.getDomicilio());
+        usuario.setFechaNacimiento(identidad.getFechaNacimiento());
+        usuario.setFechaCreacion(new Date());
+        usuario.setEstado(true);
+        usuario.setEstadoRegistro(Usuario.APROBADO);
+        // IE no provee contraseña local. Generar un secreto aleatorio no compartido.
+        usuario.setPassword(new BCryptPasswordEncoder().encode(java.util.UUID.randomUUID().toString()));
+        usuario.setRoles(new ArrayList<>(List.of(rol)));
+        usuario = usuarioRepository.save(usuario);
+
+        UsuarioMetodoRegistro registro = new UsuarioMetodoRegistro();
+        registro.setUsuario(usuario);
+        registro.setMetodoRegistro(metodo);
+        usuarioMetodoRegistroRepository.save(registro);
+        return usuario;
+    }
 
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
