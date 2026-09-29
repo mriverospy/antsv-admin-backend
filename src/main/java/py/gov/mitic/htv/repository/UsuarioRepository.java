@@ -17,6 +17,9 @@ import py.gov.mitic.htv.repository.projections.UsuarioPermisoDTO;
 @Repository
 public interface UsuarioRepository extends JpaRepository<Usuario, Long>, JpaSpecificationExecutor<Usuario> {
 
+    @Query("select distinct u from Usuario u join u.roles r join r.permisos p where u.estado=true and r.estado=true and p.nombre='tramites:revisar'")
+    List<Usuario> findRevisoresTramites();
+
     @Query("SELECT u FROM Usuario u WHERE u.username=?1")
     Usuario findByUsername(String username);
 
