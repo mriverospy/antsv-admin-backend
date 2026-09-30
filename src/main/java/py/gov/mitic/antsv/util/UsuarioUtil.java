@@ -38,7 +38,7 @@ public class UsuarioUtil {
         Usuario currentUser = getUsuarioActual();
 
         return currentUser.getRoles().stream()
-                .anyMatch(rol -> RolEnum.ADMINISTRADOR_GENERAL.getNombre().equals(rol.getNombre()));
+                .anyMatch(rol -> RolEnum.ADMINISTRADOR.getNombre().equals(rol.getNombre()));
     }
 
     public Long getUsuarioIdFromToken(String token) {

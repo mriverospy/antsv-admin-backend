@@ -12,6 +12,7 @@ import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import py.gov.mitic.htv.dto.TramiteDTO.*;
+import py.gov.mitic.htv.enums.RolEnum;
 import py.gov.mitic.htv.exceptions.TramiteException;
 import py.gov.mitic.htv.model.EmisorNotificacion;
 import py.gov.mitic.htv.model.Notificacion;
@@ -35,21 +36,24 @@ public class TramiteService {
     private final UsuarioRepository usuarios;
     private final NotificacionRepository notificaciones;
     private final ObjectMapper mapper;
+    private final FormularioFuncionService funciones;
 
     @Transactional
     public Map<String, Object> crear(Long tipo) {
         acceso.exigirPermiso("tramites:crear");
         // Mismo bloqueo que la publicación: la versión se elige de forma atómica.
-        tipos.bloquear(tipo).orElseThrow(() -> new TramiteException(404, "Tipo inexistente"));
+        var configuracion = tipos.bloquear(tipo).orElseThrow(() -> new TramiteException(404, "Tipo inexistente"));
         var f = formularios.vigente(tipo);
         var t = new Tramite();
         t.setIdFormulario(f.getId());
+        t.setRequiereRevision(configuracion.isRequiereRevision());
+        t.setRequierePago(configuracion.isRequierePago());
         t.setIdSolicitante(acceso.usuario());
         tramites.saveAndFlush(t);
         t.setNumero(
             "ANTSV-" + Instant.now().atZone(ZoneOffset.UTC).getYear() + "-" + String.format("%08d", t.getId())
         );
-        evento(t, "CREAR", null, "BORRADOR", "Borrador iniciado", true);
+        evento(t, "CREAR", null, "EN_PROCESO", "Solicitud iniciada", true);
         tramites.flush();
         return detalle(t);
     }
@@ -62,6 +66,12 @@ public class TramiteService {
         String numero,
         boolean asignados
     ) {
+        return listar(bandeja, page, size, estado, numero, asignados, false);
+    }
+
+    public Map<String, Object> listar(
+        boolean bandeja, int page, int size, String estado, String numero, boolean asignados, boolean enCurso
+    ) {
         acceso.exigirPermiso(bandeja ? "bandejas:ver" : "tramites:ver");
         exigir(page >= 0 && size >= 1 && size <= 100, "Paginación inválida");
         Long usuario = acceso.usuario();
@@ -70,9 +80,10 @@ public class TramiteService {
                 var filtros = new ArrayList<Predicate>();
                 filtros.add(
                     bandeja
-                        ? cb.notEqual(root.get("estado"), "BORRADOR")
+                        ? cb.isNotNull(root.get("presentadoEn"))
                         : cb.equal(root.get("idSolicitante"), usuario)
                 );
+                if (!bandeja && enCurso) filtros.add(cb.notEqual(root.get("estado"), "FINALIZADO"));
                 if (bandeja && asignados) filtros.add(cb.equal(root.get("idResponsable"), usuario));
                 if (estado != null && !estado.isBlank()) filtros.add(cb.equal(root.get("estado"), estado));
                 if (numero != null && !numero.isBlank()) filtros.add(
@@ -143,12 +154,13 @@ public class TramiteService {
         var t = bloquear(id, d.version());
         acceso.editar(t);
         var f = formularios.obtener(t.getIdFormulario());
+        var respuestasResueltas = funciones.resolver(t, f, d.respuestas(), d.ejecuciones(), false);
         var documentos = archivos(id);
         var visibles = documentos
             .stream()
-            .filter(a -> validacion.condicion(f, a.getRequisito(), false, d.respuestas()).visible())
+            .filter(a -> validacion.condicion(f, a.getRequisito(), false, respuestasResueltas).visible())
             .toList();
-        validacion.validar(f, d.respuestas(), d.instancias(), visibles, false);
+        validacion.validar(f, respuestasResueltas, d.instancias(), visibles, false);
         // Cambiar una condición retira el adjunto del borrador, conservándolo en las revisiones previas.
         for (var a : documentos)
             if (a.isActivo() && !visibles.contains(a)) {
@@ -175,10 +187,11 @@ public class TramiteService {
         }
         var campos = new HashMap<String, py.gov.mitic.htv.dto.FormularioDTO.Campo>();
         f.campos().forEach(c -> campos.put(c.codigo(), c));
-        for (var r : d.respuestas())
+        for (var r : respuestasResueltas)
             if (!TramiteValidacionService.vacio(r.valor())) datos.guardar(
                 validacion.entidad(id, f.id(), campos.get(r.campo()), r)
             );
+        t.setFuncionesEjecutadas(d.ejecuciones());
         tocar(t);
         datos.flush();
         return detalle(t);
@@ -217,6 +230,7 @@ public class TramiteService {
             tipo.isActivo() && tipo.isPermiteSolicitud(),
             "Las presentaciones de este tipo están suspendidas"
         );
+        funciones.resolver(t, f, respuestas(id), t.getFuncionesEjecutadas(), true);
         validacion.validar(f, respuestas(id), instancias(id), archivos(id), true);
         var revision = new TramiteRevision();
         revision.setIdTramite(id);
@@ -226,6 +240,10 @@ public class TramiteService {
         revision.setContenido(
             mapper.valueToTree(
                 Map.of(
+                    "ejecuciones",
+                    t.getFuncionesEjecutadas(),
+                    "consultas",
+                    funciones.evidencia(t.getFuncionesEjecutadas()),
                     "formulario",
                     f,
                     "respuestas",
@@ -238,8 +256,10 @@ public class TramiteService {
             )
         );
         datos.guardar(revision);
-        cambiar(t, "PRESENTADO", "PRESENTAR", "Solicitud presentada", true);
         t.setPresentadoEn(Instant.now());
+        String destino = t.isRequiereRevision() ? "EN_VERIFICACION" :
+            (t.isRequierePago() ? "EN_REVISION" : "FINALIZADO");
+        cambiar(t, destino, "PRESENTAR", "Solicitud presentada", true);
         datos.flush();
         return detalle(t);
     }
@@ -251,17 +271,8 @@ public class TramiteService {
             case "asignar" -> {
                 acceso.exigirPermiso("bandejas:ver");
                 acceso.exigirPermiso("tramites:asignar");
-                exigir(
-                    Set.of(
-                        "PRESENTADO",
-                        "RECIBIDO",
-                        "EN_REVISION",
-                        "OBSERVADO",
-                        "SUBSANACION",
-                        "EN_EVALUACION"
-                    ).contains(t.getEstado()),
-                    "Este expediente no puede asignarse"
-                );
+                exigir(t.isRequiereRevision() && t.getEstado().equals("EN_VERIFICACION"),
+                    "Solo se pueden asignar solicitudes en verificación");
                 exigir(d.idResponsable() != null, "Seleccione un responsable");
                 var u = usuarios
                     .findById(d.idResponsable())
@@ -271,10 +282,10 @@ public class TramiteService {
                         u
                             .getRoles()
                             .stream()
-                            .filter(r -> Boolean.TRUE.equals(r.getEstado()))
+                            .filter(r -> Boolean.TRUE.equals(r.getEstado()) && RolEnum.REVISOR_ANTSV.getNombre().equals(r.getNombre()))
                             .flatMap(r -> r.getPermisos().stream())
                             .anyMatch(p -> p.getNombre().equals("tramites:revisar")),
-                    "El responsable debe estar activo y tener permiso de revisión"
+                    "El responsable debe ser un Revisor ANTSV activo con permiso de revisión"
                 );
                 Long anterior = t.getIdResponsable();
                 t.setIdResponsable(u.getIdUsuario());
@@ -301,22 +312,10 @@ public class TramiteService {
                 );
                 tocar(t);
             }
-            case "subsanar" -> {
-                if (!acceso.propietario(t)) throw new TramiteException(
-                    403,
-                    "Solo el solicitante puede subsanar"
-                );
-                acceso.exigirPermiso("tramites:editar");
-                cambiar(t, "SUBSANACION", "SUBSANAR", "Subsanación iniciada", true);
-            }
-            case "cancelar" -> {
-                acceso.editar(t);
-                cambiar(t, "CANCELADO", "CANCELAR", motivo(d), true);
-            }
             case "nota" -> {
                 acceso.funcionario(t, "tramites:revisar");
                 exigir(
-                    !Set.of("FINALIZADO", "CANCELADO").contains(t.getEstado()),
+                    !t.getEstado().equals("FINALIZADO"),
                     "El expediente está cerrado"
                 );
                 evento(
@@ -329,28 +328,47 @@ public class TramiteService {
                 );
                 tocar(t);
             }
-            default -> {
-                String destino = switch (accion) {
-                    case "recibir" -> "RECIBIDO";
-                    case "revisar" -> "EN_REVISION";
-                    case "observar" -> "OBSERVADO";
-                    case "evaluar" -> "EN_EVALUACION";
-                    case "aprobar" -> "APROBADO";
-                    case "rechazar" -> "RECHAZADO";
-                    case "finalizar" -> "FINALIZADO";
-                    default -> throw new TramiteException(400, "Acción desconocida");
-                };
-                acceso.funcionario(
-                    t,
-                    Set.of("aprobar", "rechazar", "finalizar").contains(accion)
-                        ? "tramites:resolver"
-                        : "tramites:revisar"
-                );
+            case "aprobar", "rechazar" -> {
+                acceso.funcionario(t, "tramites:revisar");
+                exigir(t.isRequiereRevision() && t.getEstado().equals("EN_VERIFICACION"),
+                    "La solicitud no está pendiente de verificación");
+                String destino = accion.equals("rechazar") ? "EN_PROCESO" :
+                    (t.isRequierePago() ? "EN_REVISION" : "FINALIZADO");
                 cambiar(t, destino, accion.toUpperCase(Locale.ROOT), motivo(d), true);
+                if (accion.equals("rechazar")) cerrarAsignacion(t);
             }
+            case "finalizar" -> {
+                acceso.exigirPermiso("bandejas:ver");
+                acceso.exigirPermiso("tramites:resolver");
+                exigir(t.getEstado().equals("ABONADO"), "Solo se puede finalizar una solicitud abonada");
+                cambiar(t, "FINALIZADO", "FINALIZAR", motivo(d), true);
+            }
+            default -> throw new TramiteException(400, "Acción desconocida");
         }
         datos.flush();
         return detalle(t);
+    }
+
+    @Transactional
+    public Map<String, Object> pagar(Long id, Pago d) {
+        acceso.exigirPermiso("tramites:pagar");
+        var t = bloquear(id, d.version());
+        if (!acceso.pagador(t)) throw new TramiteException(403, "Solo el tramitante solicitante puede pagar su trámite");
+        exigir(t.isRequierePago() && t.getEstado().equals("EN_REVISION"),
+            "El trámite no está pendiente de pago");
+        // Provisional: reemplazar por la confirmación de la pasarela al integrar pagos reales.
+        t.setReferenciaPago("SIMULADO-" + UUID.randomUUID());
+        t.setAbonadoEn(Instant.now());
+        cambiar(t, "ABONADO", "ABONAR", "Pago simulado por el tramitante: " + t.getReferenciaPago(), true);
+        datos.flush();
+        return detalle(t);
+    }
+
+    private void cerrarAsignacion(Tramite t) {
+        var fecha = Instant.now();
+        datos.porTramite(TramiteAsignacion.class, t.getId()).stream()
+            .filter(a -> a.getFin() == null).forEach(a -> a.setFin(fecha));
+        t.setIdResponsable(null);
     }
 
     public List<Map<String, Object>> responsables() {
@@ -383,13 +401,9 @@ public class TramiteService {
         String anterior = t.getEstado();
         t.setEstado(nuevo);
         tocar(t);
-        if (Set.of("FINALIZADO", "CANCELADO").contains(nuevo)) {
+        if (nuevo.equals("FINALIZADO")) {
             t.setFinalizadoEn(Instant.now());
-            datos
-                .porTramite(TramiteAsignacion.class, t.getId())
-                .stream()
-                .filter(a -> a.getFin() == null)
-                .forEach(a -> a.setFin(t.getFinalizadoEn()));
+            cerrarAsignacion(t);
         }
         evento(t, accion, anterior, nuevo, motivo, visible);
         // Notificación interna en la misma transacción; no depende de SMTP ni envía mensajes externos.
@@ -451,7 +465,9 @@ public class TramiteService {
             "propietario",
             acceso.propietario(t),
             "asignado",
-            Objects.equals(t.getIdResponsable(), acceso.usuario())
+            Objects.equals(t.getIdResponsable(), acceso.usuario()),
+            "puedePagar",
+            acceso.puedePagar(t)
         );
     }
 }

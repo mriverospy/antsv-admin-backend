@@ -6,6 +6,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import py.gov.mitic.htv.exceptions.TramiteException;
 import py.gov.mitic.htv.model.Tramite;
+import py.gov.mitic.htv.enums.RolEnum;
 import py.gov.mitic.htv.util.UsuarioUtil;
 
 @Service
@@ -39,7 +40,7 @@ public class TramiteAccesoService {
 
     public void lectura(Tramite t) {
         if (propietario(t) && permiso("tramites:ver")) return;
-        if (permiso("bandejas:ver") && !t.getEstado().equals("BORRADOR")) return;
+        if (permiso("bandejas:ver") && t.getPresentadoEn() != null) return;
         throw new TramiteException(403, "No tiene acceso a este expediente");
     }
 
@@ -47,11 +48,26 @@ public class TramiteAccesoService {
         exigirPermiso("tramites:editar");
         if (!propietario(t)) throw new TramiteException(403, "Solo el solicitante puede modificar sus datos");
         if (
-            !t.getEstado().equals("BORRADOR") && !t.getEstado().equals("SUBSANACION")
+            !t.getEstado().equals("EN_PROCESO")
         ) throw new TramiteException(409, "El trámite no está en un estado editable");
     }
 
+    public boolean pagador(Tramite t) {
+        return propietario(t) && usuarios.getUsuarioActual().getRoles().stream()
+            .anyMatch(r -> Boolean.TRUE.equals(r.getEstado()) && RolEnum.TRAMITANTE_ANTSV.getNombre().equals(r.getNombre()));
+    }
+
+    public boolean puedePagar(Tramite t) {
+        return permiso("tramites:pagar") && pagador(t) && t.isRequierePago() && t.getEstado().equals("EN_REVISION");
+    }
+
+    public boolean revisor() {
+        return usuarios.getUsuarioActual().getRoles().stream()
+            .anyMatch(r -> Boolean.TRUE.equals(r.getEstado()) && RolEnum.REVISOR_ANTSV.getNombre().equals(r.getNombre()));
+    }
+
     public void funcionario(Tramite t, String permiso) {
+        if (!revisor()) throw new TramiteException(403, "Se requiere el rol Revisor ANTSV");
         exigirPermiso("bandejas:ver");
         exigirPermiso(permiso);
         if (!Objects.equals(t.getIdResponsable(), usuario())) throw new TramiteException(

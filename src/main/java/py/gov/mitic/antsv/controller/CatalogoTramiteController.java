@@ -11,7 +11,7 @@ import py.gov.mitic.htv.service.CatalogoService;
 @RestController
 @RequestMapping("/tramite-catalogo")
 @RequiredArgsConstructor
-@PreAuthorize("hasAuthority('formularios:administrar')")
+@PreAuthorize("@usuarioUtil.isAdmin() and hasAuthority('formularios:administrar')")
 public class CatalogoTramiteController {
 
     private final CatalogoService service;

@@ -138,6 +138,7 @@ public class FormularioValidacionService {
                 "Descripción de requisito demasiado extensa"
             );
         }
+        validarFunciones(d);
         // Las condiciones dependen únicamente de campos raíz sin condición propia: no hay ciclos ni orden implícito.
         var destinos = new HashSet<String>();
         for (var r : d.reglas()) {
@@ -167,6 +168,45 @@ public class FormularioValidacionService {
         }
         for (var r : d.reglas())
             exigir(!destinos.contains(r.origen()), "No se permiten dependencias encadenadas o cíclicas");
+    }
+
+    private void validarFunciones(FormularioDTO d) {
+        exigir(d.funciones().size() <= 20, "Máximo 20 funciones por formulario");
+        var codigos = new HashSet<String>();
+        var destinos = new HashSet<String>();
+        var entradas = new HashSet<String>();
+        var campos = new java.util.HashMap<String, FormularioDTO.Campo>();
+        d.campos().forEach(c -> campos.put(c.codigo(), c));
+        for (var f : d.funciones()) {
+            exigir(f != null && validoCodigo(f.codigo()) && codigos.add(f.codigo()), "Código de función inválido o duplicado");
+            exigir("SII_CONSULTAR_PERSONA".equals(f.funcion()) && f.versionFuncion() == 1, "Función o versión no soportada");
+            exigir(Set.of("AL_SALIR_DEL_CAMPO", "AL_CAMBIAR_SELECCION", "MANUAL").contains(java.util.Objects.toString(f.evento(), "")), "Evento no soportado");
+            var origen = campos.get(f.origen());
+            exigir(origen != null && origen.grupo() == null && Set.of("TEXT", "SELECT", "RADIO").contains(origen.tipo()), "El origen debe ser un campo raíz de texto o selección");
+            exigir(!"AL_CAMBIAR_SELECCION".equals(f.evento()) || Set.of("SELECT", "RADIO").contains(origen.tipo()), "Seleccione un campo de selección para este evento");
+            exigir(f.entradas() != null && f.entradas().size() == 1, "La consulta requiere el número de documento");
+            var entrada = f.entradas().getFirst();
+            exigir(entrada != null && "numeroDocumento".equals(entrada.parametro()) && f.origen().equals(entrada.campo()), "Vincule numeroDocumento al campo origen");
+            entradas.add(entrada.campo());
+            exigir(f.salidas() != null && f.salidas().size() == 3, "Mapee nombres, apellidos y fechaNacimiento");
+            var atributos = new HashSet<String>();
+            for (var salida : f.salidas()) {
+                exigir(salida != null && Set.of("nombres", "apellidos", "fechaNacimiento").contains(java.util.Objects.toString(salida.atributo(), "")) && atributos.add(salida.atributo()), "Salida inválida o duplicada");
+                String contexto = "Función " + f.codigo() + ", salida " + salida.atributo() + ": ";
+                exigir(salida.campo() != null && !salida.campo().isBlank(), contexto + "seleccione un campo destino");
+                var destino = campos.get(salida.campo());
+                exigir(destino != null, contexto + "el campo destino " + salida.campo() + " no existe");
+                exigir(destino.grupo() == null, contexto + "el destino debe estar fuera de un grupo repetible");
+                exigir(destinos.add(salida.campo()), contexto + "el campo " + salida.campo() + " ya recibe otra salida; seleccione un campo diferente");
+                exigir(destino.tipo().equals(salida.atributo().equals("fechaNacimiento") ? "DATE" : "TEXT"), "Tipo incompatible para " + salida.atributo());
+                exigir(Set.of("ENTRADA", "TEXTO").contains(java.util.Objects.toString(salida.presentacion(), "")), "Presentación no soportada");
+            }
+        }
+        exigir(java.util.Collections.disjoint(destinos, entradas), "No se permiten ciclos ni cadenas entre funciones");
+        for (var r : d.reglas()) {
+            exigir(r == null || !destinos.contains(r.destino()), "Los campos autocompletados no pueden ocultarse ni tener otra condición");
+            exigir(r == null || !entradas.contains(r.destino()), "El origen de una función no puede depender de otra condición");
+        }
     }
 
     private void codigo(Set<String> usados, String c) {

@@ -21,6 +21,11 @@ public class TipoTramite {
     private String descripcion;
     private boolean activo = true;
     private boolean permiteSolicitud;
+    private boolean requiereRevision = true;
+    private boolean requierePago = true;
+
+    @Transient
+    private String estado = "BORRADOR";
     private int orden;
     private Long creadoPor;
     private Long actualizadoPor;

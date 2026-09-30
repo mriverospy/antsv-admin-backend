@@ -40,9 +40,20 @@ public class TramiteController {
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "10") int pageSize,
         @RequestParam(required = false) String estado,
+        @RequestParam(required = false) String numero,
+        @RequestParam(defaultValue = "false") boolean enCurso
+    ) {
+        return ok(service.listar(false, page, pageSize, estado, numero, false, enCurso));
+    }
+
+    @GetMapping("/historial")
+    @PreAuthorize("hasAuthority('tramites:ver')")
+    public ResponseEntity<ResponseDTO> historial(
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "10") int pageSize,
         @RequestParam(required = false) String numero
     ) {
-        return ok(service.listar(false, page, pageSize, estado, numero, false));
+        return ok(service.listar(false, page, pageSize, "FINALIZADO", numero, false));
     }
 
     @GetMapping("/bandeja")
@@ -73,6 +84,12 @@ public class TramiteController {
     @PreAuthorize("hasAuthority('tramites:presentar')")
     public ResponseEntity<ResponseDTO> presentar(@PathVariable Long id, @Valid @RequestBody Accion d) {
         return ok(service.presentar(id, d));
+    }
+
+    @PostMapping("/{id}/pago")
+    @PreAuthorize("hasAuthority('tramites:pagar')")
+    public ResponseEntity<ResponseDTO> pagar(@PathVariable Long id, @Valid @RequestBody Pago d) {
+        return ok(service.pagar(id, d));
     }
 
     @PostMapping("/{id}/accion/{accion}")

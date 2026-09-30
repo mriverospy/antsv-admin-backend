@@ -193,7 +193,7 @@ public class UsuarioService extends GenericSpecification<Usuario> implements Use
 
 		// Verificar si es Administrador General
 		boolean esAdminGeneral = currentUser.getRoles().stream()
-				.anyMatch(rol -> RolEnum.ADMINISTRADOR_GENERAL.getNombre().equals(rol.getNombre()));
+				.anyMatch(rol -> RolEnum.ADMINISTRADOR.getNombre().equals(rol.getNombre()));
 		Specification<Usuario> specification = (root, query, cb) -> {
 			Join<Usuario, Rol> rolJoin = root.join("roles", JoinType.LEFT);
 
@@ -545,7 +545,7 @@ public class UsuarioService extends GenericSpecification<Usuario> implements Use
 			Usuario currentUser = usuarioUtil.getUsuarioActual();
 			// Verificar si es Administrador General
 			boolean esAdminGeneral = currentUser.getRoles().stream()
-					.anyMatch(rol -> RolEnum.ADMINISTRADOR_GENERAL.getNombre().equals(rol.getNombre()));
+					.anyMatch(rol -> RolEnum.ADMINISTRADOR.getNombre().equals(rol.getNombre()));
 			List<Organizacion> organizaciones;
 			if (!esAdminGeneral) {
 				organizaciones = usuarioOrganizacionRepository

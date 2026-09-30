@@ -21,6 +21,10 @@ public class Formulario {
     private int numeroVersion;
     private String estado = "BORRADOR";
 
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private java.util.List<py.gov.mitic.htv.dto.FormularioDTO.Funcion> funciones = java.util.List.of();
+
     @Version
     private Long version;
 

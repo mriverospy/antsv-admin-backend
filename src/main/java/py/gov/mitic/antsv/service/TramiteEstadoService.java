@@ -8,16 +8,11 @@ import py.gov.mitic.htv.exceptions.TramiteException;
 @Service
 public class TramiteEstadoService {
 
-    private static final Map<String, Set<String>> TRANSICIONES = Map.ofEntries(
-        Map.entry("BORRADOR", Set.of("PRESENTADO", "CANCELADO")),
-        Map.entry("PRESENTADO", Set.of("RECIBIDO")),
-        Map.entry("RECIBIDO", Set.of("EN_REVISION")),
-        Map.entry("EN_REVISION", Set.of("OBSERVADO", "EN_EVALUACION")),
-        Map.entry("OBSERVADO", Set.of("SUBSANACION")),
-        Map.entry("SUBSANACION", Set.of("PRESENTADO")),
-        Map.entry("EN_EVALUACION", Set.of("OBSERVADO", "APROBADO", "RECHAZADO")),
-        Map.entry("APROBADO", Set.of("FINALIZADO")),
-        Map.entry("RECHAZADO", Set.of("FINALIZADO"))
+    private static final Map<String, Set<String>> TRANSICIONES = Map.of(
+        "EN_PROCESO", Set.of("EN_VERIFICACION", "EN_REVISION", "FINALIZADO"),
+        "EN_VERIFICACION", Set.of("EN_PROCESO", "EN_REVISION", "FINALIZADO"),
+        "EN_REVISION", Set.of("ABONADO"),
+        "ABONADO", Set.of("FINALIZADO")
     );
 
     public void validar(String origen, String destino) {

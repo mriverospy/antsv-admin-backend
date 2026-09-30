@@ -25,6 +25,7 @@ public class FormularioService {
     private final FormularioValidacionService validacion;
     private final UsuarioUtil usuarios;
     private final CatalogoService catalogos;
+    private final FuncionFormularioRegistry funciones;
 
     public List<TipoTramite> tipos(boolean administracion) {
         return tipos
@@ -37,7 +38,15 @@ public class FormularioService {
                         t.isPermiteSolicitud() &&
                         formularios.findByIdTipoTramiteAndEstado(t.getId(), "PUBLICADO").isPresent())
             )
+            .map(this::conEstadoPublicacion)
             .toList();
+    }
+
+    private TipoTramite conEstadoPublicacion(TipoTramite t) {
+        t.setEstado(t.isActivo() && t.isPermiteSolicitud() &&
+            formularios.findByIdTipoTramiteAndEstado(t.getId(), "PUBLICADO").isPresent()
+                ? "PUBLICADO" : "BORRADOR");
+        return t;
     }
 
     @Transactional
@@ -59,7 +68,9 @@ public class FormularioService {
         t.setActivo(d.activo());
         t.setPermiteSolicitud(d.permiteSolicitud());
         t.setOrden(d.orden());
-        return tipos.save(t);
+        if (d.requiereRevision() != null) t.setRequiereRevision(d.requiereRevision());
+        if (d.requierePago() != null) t.setRequierePago(d.requierePago());
+        return conEstadoPublicacion(tipos.save(t));
     }
 
     public List<Formulario> versiones(Long tipo) {
@@ -161,7 +172,8 @@ public class FormularioService {
                 .map(r ->
                     new Regla(r.getOrigen(), r.getDestino(), r.getOperador(), r.getValor(), r.getAccion())
                 )
-                .toList()
+                .toList(),
+            f.getFunciones()
         );
     }
 
@@ -205,6 +217,7 @@ public class FormularioService {
                 datos.borrarFormulario(clase, id);
         }
         f.setNombre(d.nombre());
+        f.setFunciones(d.funciones());
         f.setActualizadoEn(Instant.now());
         f.setActualizadoPor(usuarios.getUsuarioActual().getIdUsuario());
         formularios.saveAndFlush(f);
@@ -216,7 +229,7 @@ public class FormularioService {
     @Transactional
     public FormularioDTO publicar(Long id, Long version, String fundamento) {
         var f = cabecera(id);
-        tipos.bloquear(f.getIdTipoTramite()).orElseThrow();
+        var tipo = tipos.bloquear(f.getIdTipoTramite()).orElseThrow();
         datos.refrescar(f);
         exigir(
             fundamento != null && !fundamento.isBlank() && fundamento.length() <= 4000,
@@ -230,6 +243,7 @@ public class FormularioService {
         exigir(f.getEstado().equals("BORRADOR"), "Solo se pueden publicar borradores");
         var actual = conCatalogos(obtener(id));
         validacion.validar(actual);
+        actual.funciones().forEach(funciones::exigirDisponible);
         datos.borrarFormulario(CampoOpcion.class, id);
         for (var c : actual.campos()) {
             int orden = 0;
@@ -255,6 +269,10 @@ public class FormularioService {
         f.setActualizadoEn(Instant.now());
         f.setActualizadoPor(usuarios.getUsuarioActual().getIdUsuario());
         formularios.saveAndFlush(f);
+        tipo.setActivo(true);
+        tipo.setPermiteSolicitud(true);
+        tipo.setActualizadoEn(Instant.now());
+        tipo.setActualizadoPor(usuarios.getUsuarioActual().getIdUsuario());
         return obtener(id);
     }
 
@@ -298,7 +316,8 @@ public class FormularioService {
             d.grupos(),
             campos,
             d.requisitos(),
-            d.reglas()
+            d.reglas(),
+            d.funciones()
         );
     }
 

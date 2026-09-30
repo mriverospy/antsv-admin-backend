@@ -55,7 +55,7 @@ public class RolService extends GenericSpecification<Rol> {
         Usuario currentUser = usuarioUtil.getUsuarioActual();
 
         boolean esAdminGeneral = currentUser.getRoles().stream()
-            .anyMatch(rol -> RolEnum.ADMINISTRADOR_GENERAL.getNombre().equals(rol.getNombre()));
+            .anyMatch(rol -> RolEnum.ADMINISTRADOR.getNombre().equals(rol.getNombre()));
 
         List<Rol> roles;
 
@@ -124,10 +124,10 @@ public class RolService extends GenericSpecification<Rol> {
     public List<Long> obtenerIdsRoles() {
         List<Long> ids = new ArrayList<>();
         RolEnum[] rolesInteres = {
-            RolEnum.EVALUADOR_POSTULACION,
-            RolEnum.GESTOR_PROGRAMA,
-            RolEnum.MENTOR,
-            RolEnum.USUARIO_PUBLICO,
+            RolEnum.INSTRUCTOR,
+            RolEnum.TRAMITANTE_ANTSV,
+            RolEnum.REVISOR_ANTSV,
+            RolEnum.SUPERVISOR_TRAMITES_ANTSV,
         };
 
         for (RolEnum rolEnum : rolesInteres) {

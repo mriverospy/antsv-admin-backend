@@ -110,14 +110,14 @@ public class CatalogoService {
 
     @Transactional
     public CatalogoDTO guardar(CatalogoDTO d) {
+        exigir(d != null, "Los datos del catálogo son obligatorios");
         exigir(
-            d != null &&
-                d.codigo() != null &&
-                d.codigo().matches("[A-Z][A-Z0-9_]{1,49}") &&
-                d.nombre() != null &&
-                !d.nombre().isBlank() &&
-                d.nombre().length() <= 250,
-            "Código o nombre de catálogo inválido"
+            d.codigo() != null && d.codigo().matches("[A-Z][A-Z0-9_]{1,49}"),
+            "El código del catálogo debe tener entre 2 y 50 caracteres, comenzar con una letra y contener solo letras A-Z, números o guiones bajos. Ejemplo: NACIONALIDAD."
+        );
+        exigir(
+            d.nombre() != null && !d.nombre().isBlank() && d.nombre().length() <= 250,
+            "El nombre del catálogo es obligatorio y debe tener hasta 250 caracteres."
         );
         var items = d.tabla() == null ? d.items() : opcionesTabla(d.tabla(), d.columnaCodigo(), d.columnaDescripcion());
         exigir(d.tabla() != null || (d.columnaCodigo() == null && d.columnaDescripcion() == null), "Seleccione una tabla de origen");

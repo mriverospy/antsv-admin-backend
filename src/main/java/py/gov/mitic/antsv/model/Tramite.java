@@ -20,7 +20,15 @@ public class Tramite {
     private Long idFormulario;
     private Long idSolicitante;
     private Long idResponsable;
-    private String estado = "BORRADOR";
+    private String estado = "EN_PROCESO";
+
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private java.util.Map<String, Long> funcionesEjecutadas = java.util.Map.of();
+    private boolean requiereRevision = true;
+    private boolean requierePago = true;
+    private String referenciaPago;
+    private Instant abonadoEn;
 
     @Version
     private Long version;

@@ -5,13 +5,11 @@ import lombok.Getter;
 @Getter
 public enum RolEnum {
 
-    ADMINISTRADOR_GENERAL("ADMINISTRADOR"),
-    ADMINISTRADOR_ORGANIZACION("Administrador de Organización"),
-    GESTOR_PROGRAMA("Gestor de Programas"),
-    EVALUADOR_POSTULACION("Evaluador de Postulaciones"),
-    POSTULANTE_PROGRAMA("Postulante de Programa"),
-    USUARIO_PUBLICO("Usuario Público"),
-    MENTOR("Mentor");
+    ADMINISTRADOR("ADMINISTRADOR"),
+    INSTRUCTOR("Instructor"),
+    TRAMITANTE_ANTSV("Tramitante ANTSV"),
+    REVISOR_ANTSV("Revisor ANTSV"),
+    SUPERVISOR_TRAMITES_ANTSV("Supervisor Tramites ANTSV");
 
     private final String nombre;
 
